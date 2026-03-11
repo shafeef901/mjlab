@@ -49,7 +49,7 @@ def unitree_g1_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
   )
 
 
-def unitree_g1_velocity_reppo_runner_cfg() -> RslRlReppoRunnerCfg:
+def unitree_g1_reppo_runner_cfg() -> RslRlReppoRunnerCfg:
   """Create REPPO runner configuration for Unitree G1 velocity task."""
   return RslRlReppoRunnerCfg(
     experiment_name="g1_velocity_reppo",
@@ -57,7 +57,7 @@ def unitree_g1_velocity_reppo_runner_cfg() -> RslRlReppoRunnerCfg:
     max_iterations=100_000,
     policy=RslRlReppoActorQCfg(
       init_noise_std=0.1,
-      init_alpha_kl=0.001,
+      init_alpha_kl=0.01,
       init_alpha_temp=0.0001,
       actor_obs_normalization=True,
       critic_obs_normalization=True,
@@ -70,10 +70,10 @@ def unitree_g1_velocity_reppo_runner_cfg() -> RslRlReppoRunnerCfg:
     ),
     algorithm=RslRlReppoAlgorithmCfg(
       num_learning_epochs=4,
-      num_mini_batches=4,
+      num_mini_batches=8,
       learning_rate=3.0e-4,
       gamma=0.99,
-      lam=0.85,
+      lam=0.95,
       desired_kl=0.1,
       max_grad_norm=1.0,
       target_entropy=-0.5,
