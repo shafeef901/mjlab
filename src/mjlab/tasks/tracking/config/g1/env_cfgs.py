@@ -83,6 +83,7 @@ def unitree_g1_flat_tracking_env_cfg(
       enable_corruption=True,
     )
 
+  
   # Apply play mode overrides.
   if play:
     # Effectively infinite episode length.
@@ -96,5 +97,9 @@ def unitree_g1_flat_tracking_env_cfg(
     motion_cmd.velocity_range = {}
 
     motion_cmd.sampling_mode = "start"
+
+    cfg.terminations.pop("anchor_pos", None)
+    cfg.terminations.pop("anchor_ori", None)
+    cfg.terminations.pop("ee_body_pos", None)
 
   return cfg
