@@ -53,7 +53,7 @@ def unitree_g1_tracking_reppo_runner_cfg() -> RslRlReppoRunnerCfg:
   """Create REPPO runner configuration for Unitree G1 tracking task."""
   return RslRlReppoRunnerCfg(
     experiment_name="g1_tracking_reppo",
-    num_steps_per_env=128,
+    num_steps_per_env=32,
     max_iterations=100_000,
     policy=RslRlReppoActorQCfg(
       init_noise_std=0.1,
