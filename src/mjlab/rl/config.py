@@ -67,10 +67,6 @@ class RslRlPpoAlgorithmCfg:
   advantage is normalized over the mini-batches only. Otherwise, the advantage is
   normalized over the entire collected trajectories.
   """
-  optimizer: Literal["adam", "adamw", "sgd", "rmsprop"] = "adam"
-  """The optimizer to use."""
-  share_cnn_encoders: bool = False
-  """Share CNN encoders between actor and critic."""
   class_name: str = "PPO"
   """Algorithm class name resolved by RSL-RL."""
 
@@ -84,7 +80,7 @@ class RslRlBaseRunnerCfg:
   max_iterations: int = 300
   """The maximum number of iterations."""
   obs_groups: dict[str, tuple[str, ...]] = field(
-    default_factory=lambda: {"actor": ("actor",), "critic": ("critic",)},
+    default_factory=lambda: {"policy": ("actor",), "critic": ("critic",)},
   )
   save_interval: int = 50
   """The number of iterations between saves."""
@@ -136,3 +132,75 @@ class RslRlOnPolicyRunnerCfg(RslRlBaseRunnerCfg):
   """The critic configuration."""
   algorithm: RslRlPpoAlgorithmCfg = field(default_factory=RslRlPpoAlgorithmCfg)
   """The algorithm configuration."""
+
+
+@dataclass
+class RslRlReppoActorQCfg:
+  """Config for the REPPO ActorQ network."""
+
+  class_name: str = "ActorQ"
+  """Ignore, required by RSL-RL."""
+  init_noise_std: float = 1.0
+  """The initial noise standard deviation of the policy."""
+  init_alpha_kl: float = 0.01
+  """The initial KL divergence coefficient (adaptive)."""
+  init_alpha_temp: float = 0.01
+  """The initial temperature coefficient (adaptive)."""
+  actor_obs_normalization: bool = False
+  """Whether to normalize the observation for the actor network."""
+  critic_obs_normalization: bool = False
+  """Whether to normalize the observation for the critic network."""
+  actor_hidden_dims: Tuple[int, ...] = (512, 512, 512)
+  """The hidden dimensions of the actor network."""
+  critic_hidden_dims: Tuple[int, ...] = (512, 512, 512)
+  """The hidden dimensions of the critic network."""
+  activation: str = "elu"
+  """The activation function for the actor and critic networks."""
+  noise_std_type: Literal["scalar", "log", "sigmoid"] = "scalar"
+  """The type of noise standard deviation for the policy."""
+  vmin: float = -20.0
+  """The minimum value for the value distribution."""
+  vmax: float = 20.0
+  """The maximum value for the value distribution."""
+
+
+@dataclass
+class RslRlReppoAlgorithmCfg:
+  """Config for the REPPO algorithm."""
+
+  class_name: str = "REPPO"
+  """Ignore, required by RSL-RL."""
+  num_learning_epochs: int = 4
+  """The number of learning epochs per update."""
+  num_mini_batches: int = 8
+  """The number of mini-batches per update."""
+  learning_rate: float = 3e-4
+  """The learning rate."""
+  gamma: float = 0.99
+  """The discount factor."""
+  lam: float = 0.95
+  """The lambda parameter for Generalized Advantage Estimation (GAE)."""
+  desired_kl: float = 0.1
+  """The desired KL divergence between the new and old policies."""
+  max_grad_norm: float = 1.0
+  """The maximum gradient norm for the policy."""
+  target_entropy: float = -0.5
+  """The target entropy for the policy."""
+  scale_actions: bool = False
+  """Whether to scale actions to the environment's action bounds."""
+  action_upper_bound: float = 1.0
+  """The upper bound for action scaling."""
+  action_lower_bound: float = -1.0
+  """The lower bound for action scaling."""
+
+
+@dataclass
+class RslRlReppoRunnerCfg(RslRlBaseRunnerCfg):
+  """Configuration for the REPPO on-policy runner."""
+
+  class_name: str = "OnPolicyRunner"
+  """The runner class name. Same OnPolicyRunner as PPO; REPPO is selected via policy/algorithm class_name."""
+  policy: RslRlReppoActorQCfg = field(default_factory=RslRlReppoActorQCfg)
+  """The ActorQ policy configuration."""
+  algorithm: RslRlReppoAlgorithmCfg = field(default_factory=RslRlReppoAlgorithmCfg)
+  """The REPPO algorithm configuration."""

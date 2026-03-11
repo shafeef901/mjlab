@@ -12,6 +12,12 @@ class MjlabOnPolicyRunner(OnPolicyRunner):
 
   env: RslRlVecEnvWrapper
 
+  # Map RslRlModelCfg.class_name -> rsl_rl ActorCritic class name.
+  _MODEL_CLASS_MAP = {
+    "MLPModel": "ActorCritic",
+    "CNNModel": "ActorCriticCNN",
+  }
+
   def __init__(
     self,
     env: VecEnv,
@@ -19,12 +25,44 @@ class MjlabOnPolicyRunner(OnPolicyRunner):
     log_dir: str | None = None,
     device: str = "cpu",
   ) -> None:
-    # Strip None-valued optional configs so MLPModel doesn't receive them.
-    for key in ("actor", "critic"):
-      if key in train_cfg:
-        for opt in ("cnn_cfg", "distribution_cfg"):
-          if train_cfg[key].get(opt) is None:
-            train_cfg[key].pop(opt, None)
+    # Convert legacy actor/critic config to the flat policy dict expected
+    # by rsl_rl's OnPolicyRunner.
+    if "actor" in train_cfg and "critic" in train_cfg and "policy" not in train_cfg:
+      actor = train_cfg.pop("actor")
+      critic = train_cfg.pop("critic")
+
+      policy: dict = {
+        "actor_hidden_dims": actor["hidden_dims"],
+        "critic_hidden_dims": critic["hidden_dims"],
+        "actor_obs_normalization": actor.get("obs_normalization", False),
+        "critic_obs_normalization": critic.get("obs_normalization", False),
+        "activation": actor.get("activation", "elu"),
+      }
+
+      # Map model class name (e.g. MLPModel -> ActorCritic).
+      model_cls = actor.get("class_name", "MLPModel")
+      policy["class_name"] = self._MODEL_CLASS_MAP.get(model_cls, model_cls)
+
+      # Extract noise parameters from actor distribution_cfg.
+      dist_cfg = actor.get("distribution_cfg")
+      if dist_cfg:
+        if "init_std" in dist_cfg:
+          policy["init_noise_std"] = dist_cfg["init_std"]
+        if "std_type" in dist_cfg:
+          policy["noise_std_type"] = dist_cfg["std_type"]
+
+      # Forward CNN config if present.
+      cnn_cfg = actor.get("cnn_cfg")
+      if cnn_cfg is not None:
+        policy["cnn_cfg"] = cnn_cfg
+
+      train_cfg["policy"] = policy
+
+    # Rename obs_groups "actor" -> "policy" to match rsl_rl convention.
+    obs_groups = train_cfg.get("obs_groups", {})
+    if "actor" in obs_groups and "policy" not in obs_groups:
+      obs_groups["policy"] = obs_groups.pop("actor")
+
     super().__init__(env, train_cfg, log_dir, device)
 
   def export_policy_to_onnx(
@@ -61,10 +99,12 @@ class MjlabOnPolicyRunner(OnPolicyRunner):
     """
     env_state = {"common_step_counter": self.env.unwrapped.common_step_counter}
     infos = {**(infos or {}), "env_state": env_state}
-    # Inline base OnPolicyRunner.save() to conditionally gate W&B upload.
-    saved_dict = self.alg.save()
-    saved_dict["iter"] = self.current_learning_iteration
-    saved_dict["infos"] = infos
+    saved_dict = {
+      "model_state_dict": self.alg.policy.state_dict(),
+      "optimizer_state_dict": self.alg.optimizer.state_dict(),
+      "iter": self.current_learning_iteration,
+      "infos": infos,
+    }
     torch.save(saved_dict, path)
     if self.cfg["upload_model"]:
       self.logger.save_model(path, self.current_learning_iteration)
@@ -72,59 +112,16 @@ class MjlabOnPolicyRunner(OnPolicyRunner):
   def load(
     self,
     path: str,
-    load_cfg: dict | None = None,
-    strict: bool = True,
+    load_optimizer: bool = True,
     map_location: str | None = None,
   ) -> dict:
     """Load checkpoint.
 
-    Extends the base implementation to:
-    1. Restore common_step_counter to preserve curricula state.
-    2. Migrate legacy checkpoints (actor.* -> mlp.*, actor_obs_normalizer.*
-      -> obs_normalizer.*) to the current format (rsl-rl>=4.0).
+    Extends the base implementation to restore common_step_counter to
+    preserve curricula state.
     """
-    loaded_dict = torch.load(path, map_location=map_location, weights_only=False)
+    infos = super().load(path, load_optimizer, map_location)
 
-    if "model_state_dict" in loaded_dict:
-      print(f"Detected legacy checkpoint at {path}. Migrating to new format...")
-      model_state_dict = loaded_dict.pop("model_state_dict")
-      actor_state_dict = {}
-      critic_state_dict = {}
-
-      for key, value in model_state_dict.items():
-        # Migrate actor keys.
-        if key.startswith("actor."):
-          new_key = key.replace("actor.", "mlp.")
-          actor_state_dict[new_key] = value
-        elif key.startswith("actor_obs_normalizer."):
-          new_key = key.replace("actor_obs_normalizer.", "obs_normalizer.")
-          actor_state_dict[new_key] = value
-        elif key in ["std", "log_std"]:
-          actor_state_dict[key] = value
-
-        # Migrate critic keys.
-        if key.startswith("critic."):
-          new_key = key.replace("critic.", "mlp.")
-          critic_state_dict[new_key] = value
-        elif key.startswith("critic_obs_normalizer."):
-          new_key = key.replace("critic_obs_normalizer.", "obs_normalizer.")
-          critic_state_dict[new_key] = value
-
-      loaded_dict["actor_state_dict"] = actor_state_dict
-      loaded_dict["critic_state_dict"] = critic_state_dict
-
-    # Migrate rsl-rl 4.x actor keys to 5.x distribution keys.
-    actor_sd = loaded_dict.get("actor_state_dict", {})
-    if "std" in actor_sd:
-      actor_sd["distribution.std_param"] = actor_sd.pop("std")
-    if "log_std" in actor_sd:
-      actor_sd["distribution.log_std_param"] = actor_sd.pop("log_std")
-
-    load_iteration = self.alg.load(loaded_dict, load_cfg, strict)
-    if load_iteration:
-      self.current_learning_iteration = loaded_dict["iter"]
-
-    infos = loaded_dict["infos"]
     if infos and "env_state" in infos:
       self.env.unwrapped.common_step_counter = infos["env_state"]["common_step_counter"]
     return infos

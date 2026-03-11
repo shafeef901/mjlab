@@ -11,7 +11,13 @@ from typing import Literal, cast
 import tyro
 
 from mjlab.envs import ManagerBasedRlEnv, ManagerBasedRlEnvCfg
-from mjlab.rl import MjlabOnPolicyRunner, RslRlBaseRunnerCfg, RslRlVecEnvWrapper
+from mjlab.rl import (
+  MjlabOnPolicyRunner,
+  RslRlBaseRunnerCfg,
+  RslRlOnPolicyRunnerCfg,
+  RslRlReppoRunnerCfg,
+  RslRlVecEnvWrapper,
+)
 from mjlab.tasks.registry import list_tasks, load_env_cfg, load_rl_cfg, load_runner_cls
 from mjlab.tasks.tracking.mdp import MotionCommandCfg
 from mjlab.utils.gpu import select_gpus
@@ -24,7 +30,7 @@ from mjlab.utils.wrappers import VideoRecorder
 @dataclass(frozen=True)
 class TrainConfig:
   env: ManagerBasedRlEnvCfg
-  agent: RslRlBaseRunnerCfg
+  agent: RslRlOnPolicyRunnerCfg | RslRlReppoRunnerCfg
   registry_name: str | None = None
   video: bool = False
   video_length: int = 200

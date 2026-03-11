@@ -44,10 +44,11 @@ dependencies = [
   "mediapy>=1.2.6",
   "imageio-ffmpeg",
   "tensordict",
-  "rsl-rl-lib==5.0.1",
+  "rsl-rl-lib",
   "tensorboard>=2.20.0",
   "onnxscript>=0.5.4",
   "wandb>=0.22.3",
+  "sympy",
 ]
 
 [project.urls]
@@ -131,6 +132,7 @@ torch = [
 ]
 mujoco = { index = "mujoco" }
 mujoco-warp = { git = "https://github.com/google-deepmind/mujoco_warp", rev = "5a86ec28aa07741eb2e000d158f4ca4068ec146e" }
+rsl-rl-lib = { git = "ssh://git@github.com/cvoelcker/rsl_rl.git" }
 
 [tool.ruff]
 src = ["src"]  # Helpful for recognizing first-party imports.
