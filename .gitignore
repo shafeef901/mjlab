@@ -8,6 +8,8 @@ debug.py
 .vscode/
 *.ipynb_checkpoints/
 motions/
+# Exception: track reference motion for dance1
+!assets/motions/dance1_subject1.npz
 *_rerun*
 artifacts/
 .venv/
